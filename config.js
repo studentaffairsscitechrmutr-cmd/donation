@@ -6,7 +6,7 @@
  *         ถ้าเว้นว่าง ทุกหน้าจะทำงานในโหมดตัวอย่าง (ไม่ส่งข้อมูลจริง)
  */
 window.SCHOLARSHIP_CONFIG = {
-  apiUrl: 'https://script.google.com/macros/s/AKfycbxAR-IZsDOIrDZhNtCvMVmzB5Tfk-obmijW_AYwtkyVr-fhwUZA-7uAHnY-kulaiytFaw/exec',
+  apiUrl: 'https://script.google.com/macros/s/AKfycbxr6X0LBFcVYXGVAYtORHtnmEnD990PoxBASuqLhv5XQsAI9BFyVrQxigPHPnI5Wu1dRg/exec',
 
   // ชื่อไฟล์ของแต่ละหน้า (เปลี่ยนเฉพาะกรณีวางไฟล์คนละที่หรือเปลี่ยนชื่อไฟล์)
   pages: {

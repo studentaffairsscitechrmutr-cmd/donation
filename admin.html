@@ -361,7 +361,7 @@
 <dialog id="checkDlg" aria-labelledby="chkTitle">
   <div class="dlg-head"><h2 id="chkTitle">ตรวจสอบหลักฐานการโอนเงิน</h2><button type="button" class="x" id="chkX" aria-label="ปิด">×</button></div>
   <div class="dlg-body">
-    <div class="slip"><img id="slipImg" alt="หลักฐานการโอนเงินของผู้บริจาค"><p class="slip-cap" id="slipCap"></p></div>
+    <div class="slip"><img id="slipImg" alt="หลักฐานการโอนเงินของผู้บริจาค"><p class="slip-cap" id="slipCap"></p><p class="slip-cap" id="slipLink"></p></div>
     <dl class="dl" id="chkInfo"></dl>
     <p class="notice" id="chkPublish"></p>
     <p class="notice warn" id="chkLock" hidden></p>
@@ -497,7 +497,7 @@
     if (action === 'login') return { token: 'demo' };
     if (action === 'logout') return {};
     if (action === 'init') return JSON.parse(JSON.stringify({ user: 'Admin (ตัวอย่าง)', sender: { name: 'Admin', email: CONFIG.senderEmail }, certReady: true, telegramReady: true, donations: DEMO.donations, config: DEMO.config, templates: DEMO.templates || null }));
-    if (action === 'getSlip') { const d = find(); return { slip: { mime: 'image/svg+xml', url: d.slipUrl } }; }
+    if (action === 'getSlip') { const d = find(); return { slip: { demoUrl: d.slipUrl, size: 12345 } }; }
     if (action === 'decide') { const d = find(); d.status = payload.decision; d.decidedAt = new Date().toISOString(); d.declineReason = payload.reason || ''; return { decidedAt: d.decidedAt }; }
     if (action === 'sendEmail') { const d = find(); const t = new Date().toISOString(); d[KINDS[payload.kind].field] = t; return { sentAt: t }; }
     if (action === 'testEmail') return { to: CONFIG.senderEmail };
@@ -665,19 +665,38 @@
 
   async function loadSlip(d) {
     const my = ++slipReq;
-    const img = $('#slipImg'); const cap = $('#slipCap');
+    const img = $('#slipImg'); const cap = $('#slipCap'); const link = $('#slipLink');
     const cached = slipCache[d.id];
     const show = (r) => {
       if (my !== slipReq) return;
-      const src = (r.slip && (r.slip.url || dataUrl(r.slip))) || '';
-      if (src) { img.src = src; img.hidden = false; cap.textContent = ''; } else { img.hidden = true; cap.textContent = 'ไม่พบไฟล์หลักฐานการโอนเงิน'; }
+      link.replaceChildren();
+      const s = r.slip;
+      /* demoUrl ใช้เฉพาะโหมดตัวอย่างในเครื่อง หลังบ้านจริงไม่เคยส่งค่านี้ */
+      const data = dataUrl(s) || (demo && s && s.demoUrl) || '';
+      if (data) {
+        img.src = data; img.hidden = false; cap.textContent = '';
+      } else {
+        img.hidden = true; img.removeAttribute('src');
+        /* บอกสาเหตุจริงที่หลังบ้านส่งมา เพื่อให้แก้ได้ถูกจุด */
+        cap.textContent = (s && (s.error || s.note)) || 'ไม่พบไฟล์หลักฐานการโอนเงิน';
+      }
+      if (s && typeof s.url === 'string' && /^https:\/\//.test(s.url)) {
+        link.append(el('a', { href: s.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'เปิดไฟล์ใน Google Drive' }));
+      }
       const lg = dataUrl(r.logo); const box = $('#chkLogo');
-      if (box) { box.replaceChildren(); if (lg) box.append(el('img', { src: lg, alt: 'โลโก้ที่ผู้บริจาคแนบ', className: 'entity-logo' })); }
+      if (box) {
+        box.replaceChildren();
+        if (lg) box.append(el('img', { src: lg, alt: 'โลโก้ที่ผู้บริจาคแนบ', className: 'entity-logo' }));
+        else if (r.logo && r.logo.error) box.append(el('span', { textContent: r.logo.error }));
+      }
     };
     if (cached) { show(cached); return; }
-    img.hidden = true; img.removeAttribute('src'); cap.textContent = 'กำลังโหลดหลักฐานการโอนเงิน…';
+    img.hidden = true; img.removeAttribute('src'); link.replaceChildren(); cap.textContent = 'กำลังโหลดหลักฐานการโอนเงิน…';
     try { const r = await api('getSlip', { id: d.id }); slipCache[d.id] = r; show(r); }
-    catch (e) { if (my === slipReq && e.code !== 'AUTH') cap.textContent = 'โหลดหลักฐานการโอนเงินไม่สำเร็จ โปรดปิดแล้วกด Check อีกครั้ง'; }
+    catch (e) {
+      if (my !== slipReq || e.code === 'AUTH') return;
+      cap.textContent = (e.message ? 'โหลดหลักฐานการโอนเงินไม่สำเร็จ: ' + e.message : 'โหลดหลักฐานการโอนเงินไม่สำเร็จ โปรดปิดแล้วกด Check อีกครั้ง');
+    }
   }
 
   function fillCheck() {
@@ -736,7 +755,7 @@
   $('#declineBtn').addEventListener('click', () => { if (!declineStage) { declineStage = true; fillCheck(); $('#declineReason').focus(); } else decide('declined'); });
   $('#chkClose').addEventListener('click', () => $('#checkDlg').close());
   $('#chkX').addEventListener('click', () => $('#checkDlg').close());
-  $('#checkDlg').addEventListener('close', () => { revealed = false; slipReq++; $('#slipImg').removeAttribute('src'); });
+  $('#checkDlg').addEventListener('close', () => { revealed = false; slipReq++; $('#slipImg').removeAttribute('src'); $('#slipLink').replaceChildren(); });
 
   /* ----- ส่งอีเมล (ข้อความจากเมนูแม่แบบอีเมล) ----- */
   function contactText() {
